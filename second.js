@@ -1,6 +1,6 @@
  varun ={
     name:"varun",
     age:21,
-    city:"mumbai"   
+    city:"navi mumbai"   
 }
 module.exports=varun;
