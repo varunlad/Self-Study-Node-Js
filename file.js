@@ -1,5 +1,12 @@
-const fs = require("fs");
+// The Path module is a core module in Node.js, so no installation is needed.
+// You can import it using either CommonJS or ES modules syntax:
+// import fs from "fs"; //Es6 module syntax this is used when you have "type": "module" in your package.json file
+// import os from "os";
+const fs = require("fs");//CommonJS module syntax by default this is used in Node.js
 const os = require("os");
+
+//fs (File System): Provides an API for interacting with the file system (reading, writing, deleting, and updating files and directories).
+//os (Operating System): Provides operating system-related utility methods and properties (information about the OS, CPU, memory, etc.).
 
 console.log('cpu size', os.cpus().length);
 
