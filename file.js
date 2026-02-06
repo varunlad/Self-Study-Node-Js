@@ -17,6 +17,15 @@ console.log('cpu size', os.cpus().length);
 
 console.log("1");
 
+
+fs.writeFile('contact.txt', 'varun:9834978189\nram:9826253626', (err) => {
+    if (err) {
+        console.error('Error writing file:', err);
+        return;
+    }
+    console.log('File written successfully');
+});
+
 ////Non blocking code
 fs.readFile('contact.txt', 'utf-8', (err, data) => {
     if (err) {
