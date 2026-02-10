@@ -39,7 +39,7 @@ userSchema.pre('save', async function (next) {
 userSchema.methods.comparePassword = function (candidate) {
   return bcrypt.compare(candidate, this.password);
 };
-
+ 
 // Return safe user object
 userSchema.methods.toSafeObject = function () {
   return {
