@@ -1,6 +1,6 @@
 Register
 
-1. POST /auth/register
+1. Register POST /auth/register
 Body (JSON):{
   "name": "Varun Lad",
   "email": "varun@example.com",
@@ -22,4 +22,34 @@ Success (201):{
 409 — Email already registered (unique index violation)
 500 — Server error
 
+
+2. Login POST /auth/login
+Body (JSON):{
+  "email": "varun@example.com",
+  "password": "MyStr0ngP@ss"
+}
+Success (200): {
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": { "id": "67a9c9a93f...", "name": "Varun Lad", "email": "varun@example.com" }
+}
+400 — Missing credentials
+401 — Invalid credentials (generic to avoid user enumeration)
+500 — Server error
+
+3. Me (Protected)
+Headers: Authorization: Bearer <token>
+authRequired verifies token and sets req.user.
+Fetch the latest user from DB using req.user.sub.
+Return a safe user object.
+Success (200):{
+  "message": "Profile fetched.",
+  "user": {
+    "id": "67a9c9a93f...",
+    "name": "Varun Lad",
+    "email": "varun@example.com"
+  }
+}
+401 — Missing/invalid/expired token
+404 — User not found (e.g., deleted after token issued)
+500 — Server error
 
