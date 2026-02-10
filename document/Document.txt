@@ -1,0 +1,25 @@
+Register
+
+1. POST /auth/register
+Body (JSON):{
+  "name": "Varun Lad",
+  "email": "varun@example.com",
+  "password": "MyStr0ngP@ss"
+}
+Validate required fields (name, email, password).
+Check if a user with the email already exists.
+Create a new user. The pre-save hook hashes the password.
+Return a safe user (no password).
+Success (201):{
+  "message": "User registered",
+  "user": {
+    "id": "67a9c9a93f...",
+    "name": "Varun Lad",
+    "email": "varun@example.com"
+  }
+}
+400 — Missing fields
+409 — Email already registered (unique index violation)
+500 — Server error
+
+
