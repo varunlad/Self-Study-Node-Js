@@ -122,6 +122,55 @@ app.get('/me', authRequired, async (req, res) => {
   }
 });
 
+
+/**
+ * PATCH /auth/change-password
+ * Protected: requires Bearer token
+ * Body: { oldPassword, newPassword }
+ */
+app.patch('/auth/change-password', authRequired, async (req, res) => {
+  try {
+    const { oldPassword, newPassword } = req.body || {};
+
+    // 1) Basic validations
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({ error: 'oldPassword and newPassword are required.' });
+    }
+    if (oldPassword === newPassword) {
+      return res.status(400).json({ error: 'newPassword must be different from oldPassword.' });
+    }
+    // Optional: stronger policy
+    if (newPassword.length < 8) {
+      return res.status(400).json({ error: 'newPassword must be at least 8 characters long.' });
+    }
+
+    // 2) Load user with password
+    const user = await User.findById(req.user.sub).select('+password');
+    if (!user) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    // 3) Verify old password
+    const isMatch = await user.comparePassword(oldPassword);
+    if (!isMatch) {
+      // 403: authenticated but not allowed due to wrong existing secret
+      return res.status(403).json({ error: 'Old password is incorrect.' });
+    }
+
+    // 4) Set new password (pre-save hook will hash it)
+    user.password = newPassword;
+    await user.save();
+
+    // 5) (Optional) Invalidate existing tokens in your system if you store refresh tokens.
+    // For pure stateless JWTs, you might rotate JWT_SECRET periodically or issue a new token.
+
+    return res.json({ message: 'Password updated successfully.' });
+  } catch (err) {
+    console.error('Change-password error:', err);
+    return res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
 // --- Connect DB, then start server ---
 (async () => {
   try {
@@ -148,4 +197,3 @@ app.get('/me', authRequired, async (req, res) => {
     process.exit(1);
   }
 })();
-``
