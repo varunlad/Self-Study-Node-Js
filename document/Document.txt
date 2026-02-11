@@ -1,16 +1,28 @@
-Register
+# Auth API Documentation (Express + JWT + MongoDB)
 
-1. Register POST /auth/register
-Body (JSON):{
+Base URL: http://localhost:5000
+
+========================================
+1) Register
+========================================
+Endpoint:
+  POST /auth/register
+
+Body (JSON):
+{
   "name": "Varun Lad",
   "email": "varun@example.com",
   "password": "MyStr0ngP@ss"
 }
-Validate required fields (name, email, password).
-Check if a user with the email already exists.
-Create a new user. The pre-save hook hashes the password.
-Return a safe user (no password).
-Success (201):{
+
+Flow:
+- Validate required fields (name, email, password).
+- Check if a user with the email already exists.
+- Create a new user. The pre-save hook hashes the password.
+- Return a safe user (no password).
+
+Success (201):
+{
   "message": "User registered",
   "user": {
     "id": "67a9c9a93f...",
@@ -18,30 +30,59 @@ Success (201):{
     "email": "varun@example.com"
   }
 }
-400 — Missing fields
-409 — Email already registered (unique index violation)
-500 — Server error
+
+Errors:
+- 400 — Missing fields
+- 409 — Email already registered (unique index violation)
+- 500 — Server error
 
 
-2. Login POST /auth/login
-Body (JSON):{
+========================================
+2) Login
+========================================
+Endpoint:
+  POST /auth/login
+
+Body (JSON):
+{
   "email": "varun@example.com",
   "password": "MyStr0ngP@ss"
 }
-Success (200): {
+
+Flow:
+- Validate required fields (email, password).
+- Find user by email and include password field.
+- Compare provided password with the stored hash.
+- If matched, issue a JWT and return safe user.
+
+Success (200):
+{
   "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
   "user": { "id": "67a9c9a93f...", "name": "Varun Lad", "email": "varun@example.com" }
 }
-400 — Missing credentials
-401 — Invalid credentials (generic to avoid user enumeration)
-500 — Server error
 
-3. Me (Protected)
-Headers: Authorization: Bearer <token>
-authRequired verifies token and sets req.user.
-Fetch the latest user from DB using req.user.sub.
-Return a safe user object.
-Success (200):{
+Errors:
+- 400 — Missing credentials
+- 401 — Invalid credentials (generic to avoid user enumeration)
+- 500 — Server error
+
+
+========================================
+3) Me (Protected)
+========================================
+Endpoint:
+  GET /me
+
+Headers:
+  Authorization: Bearer <token>
+
+Flow:
+- authRequired verifies token and sets req.user.
+- Fetch the latest user from DB using req.user.sub.
+- Return a safe user object.
+
+Success (200):
+{
   "message": "Profile fetched.",
   "user": {
     "id": "67a9c9a93f...",
@@ -49,7 +90,167 @@ Success (200):{
     "email": "varun@example.com"
   }
 }
-401 — Missing/invalid/expired token
-404 — User not found (e.g., deleted after token issued)
-500 — Server error
 
+Errors:
+- 401 — Missing/invalid/expired token
+- 404 — User not found (e.g., deleted after token issued)
+- 500 — Server error
+
+
+========================================
+4) Change Password (Protected)
+========================================
+Endpoint:
+  PATCH /auth/change-password
+
+Headers:
+  Authorization: Bearer <token>
+
+Body (JSON):
+{
+  "oldPassword": "OldP@ss1",
+  "newPassword": "NewP@ss2"
+}
+
+Flow:
+- authRequired validates the JWT and sets req.user.
+- Load user by req.user.sub and include password field.
+- Compare oldPassword with stored hash.
+- If valid, set user.password = newPassword and save (pre-save hook hashes it).
+- Return success message.
+
+Success (200):
+{ "message": "Password updated successfully." }
+
+Errors:
+- 400 — Missing fields or policy not met (e.g., newPassword < 8 chars, or same as old)
+- 401 — Missing/invalid/expired token
+- 403 — Old password is incorrect
+- 404 — User not found
+- 500 — Server error
+
+Notes:
+- Pre-save hook hashes the new password automatically.
+- (Optional) You can rotate/issue a new token after change if your client expects that.
+
+
+========================================
+5) Forgot Password (Public)
+========================================
+Endpoint:
+  POST /auth/forgot-password
+
+Body (JSON):
+{
+  "email": "varun@example.com"
+}
+
+Flow:
+- Accepts an email (no authentication required).
+- If user exists:
+  - Generate a one-time reset token (default TTL 15 minutes).
+  - Store SHA-256 hash of the token + expiry in user document.
+  - Email the reset link (or log to console when SMTP is not configured).
+    Example:
+      http://localhost:5000/reset-password?token=<PLAIN_TOKEN>
+- Always respond with a generic success message to prevent user enumeration.
+
+Success (200):
+{ "message": "If that email exists, a reset link has been sent." }
+
+Errors:
+- 200 — Even if email is missing/unknown, return the generic success message.
+- 500 — Server error (you may still return a generic 200 to avoid info leakage)
+
+Notes:
+- Only the hashed token is stored in DB. The plain token is sent in the link.
+- SMTP config is read from .env (SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER, SMTP_PASS, EMAIL_FROM).
+- If SMTP is not configured, the server logs the reset link for development.
+
+
+========================================
+6) Reset Password (Public, Token-based)
+========================================
+Endpoint:
+  POST /auth/reset-password
+
+Body (JSON):
+{
+  "token": "<PLAIN_TOKEN_FROM_EMAIL_LINK>",
+  "newPassword": "MyNewStr0ngP@ss2"
+}
+
+Flow:
+- Hash the provided token and find user with:
+  - passwordResetToken = hashed token
+  - passwordResetExpires > now
+- If valid:
+  - Set user.password = newPassword, clear reset token fields, save (pre-save hook hashes).
+  - (Optional) Issue a fresh JWT so the client can continue immediately.
+
+Success (200):
+{
+  "message": "Password has been reset successfully.",
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."   // optional fresh JWT
+}
+
+Errors:
+- 400 — Missing fields / weak password / token invalid or expired
+- 500 — Server error
+
+Notes:
+- Token is one-time use; cleared upon success.
+- Password policy currently: minimum 8 characters (extend via validation lib if needed).
+- If your auth middleware checks passwordChangedAt against token iat, previously issued tokens become invalid.
+
+
+========================================
+Shared Security/Implementation Notes
+========================================
+- JWT:
+  - HS256 with secret from JWT_SECRET (.env).
+  - Payload includes { sub, email, name, iat, exp }.
+  - Default expiry: 1h (configurable via JWT_EXPIRES_IN).
+- Passwords:
+  - Never stored in plaintext.
+  - Bcrypt hashing via model pre-save hook.
+- User Enumeration:
+  - Forgot-password endpoint always returns the same generic message.
+- Token Invalidation (optional hardening):
+  - passwordChangedAt set on password change.
+  - In authRequired middleware, compare JWT iat with passwordChangedAt to reject old tokens.
+
+
+========================================
+Quick cURL Examples
+========================================
+
+# Register
+curl -X POST http://localhost:5000/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Varun Lad","email":"varun@example.com","password":"MyStr0ngP@ss"}'
+
+# Login
+curl -X POST http://localhost:5000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"varun@example.com","password":"MyStr0ngP@ss"}'
+
+# Me (Protected)
+curl -X GET http://localhost:5000/me \
+  -H "Authorization: Bearer <TOKEN>"
+
+# Change Password (Protected)
+curl -X PATCH http://localhost:5000/auth/change-password \
+  -H "Authorization: Bearer <TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"oldPassword":"OldP@ss1","newPassword":"NewP@ss2"}'
+
+# Forgot Password (Public)
+curl -X POST http://localhost:5000/auth/forgot-password \
+  -H "Content-Type: application/json" \
+  -d '{"email":"varun@example.com"}'
+
+# Reset Password (Public)
+curl -X POST http://localhost:5000/auth/reset-password \
+  -H "Content-Type: application/json" \
+  -d '{"token":"<PLAIN_TOKEN_FROM_EMAIL_LINK>","newPassword":"MyNewStr0ngP@ss2"}'
